@@ -1,7 +1,5 @@
 # Robust integration of external control data in randomized trials
 
-This repository is the official implementation of "Robust integration of external control data in randomized trials".
-
 [Link to paper (available once public)]()
 
 ## Abstract

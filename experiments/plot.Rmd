@@ -1,0 +1,264 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(latex2exp)
+library(patchwork)
+library(stringr)
+library(scales)
+
+good.shapes = c(1:25,33:127)
+```
+
+
+```{r include=FALSE, results='hide'}
+library(extrafont)
+font_import()
+loadfonts()
+```
+
+
+```{r}
+
+# Set the path to your directory
+directory <- "../output_folder/"
+
+# Include list of files
+list_id <- list.files(directory,  pattern = "", full.names = FALSE)
+
+out <- data.frame()
+for (id in list_id) {
+  tmp <-
+    read.csv(paste(directory,
+                   id,
+                   sep = ''))
+  out <- rbind(out, tmp)
+  
+}
+
+
+# Change names of estimator
+out[out$estimator ==  'ipw',]$estimator = 'Unadjusted trial-only'
+out[out$estimator ==  'trial',]$estimator = 'AIPW'
+out[out$estimator ==  'robin',]$estimator = 'Optimized randomization-aware'
+out[out$estimator ==  'pooling',]$estimator = 'Naive pooling'
+out[out$estimator ==  'combined',]$estimator = 'Combined'
+out[out$estimator ==  'test-then-pool',]$estimator = 'Test-then-Pool'
+out[out$estimator ==  'dynamic_borrowing',]$estimator = 'Dynamic Borrowing'
+out[out$estimator ==  'selective_borrowing',]$estimator = 'Selective Borrowing'
+
+# change order
+out$estimator <- factor(out$estimator, levels = c('Optimized randomization-aware', 'Combined', 'Unadjusted trial-only', 'AIPW', 'Naive pooling', 'Test-then-Pool', 'Dynamic Borrowing', 'Selective Borrowing'))
+
+out$estimate <- as.numeric(out$estimate)
+out$n0 <- as.numeric(out$n0)
+out$se <- as.numeric(out$se)
+out$ci_ll <- as.numeric(out$ci_ll)
+out$ci_ul <- as.numeric(out$ci_ul)
+
+# Specify experimental setting to plot
+
+n1 <- 100
+best_case <- TRUE # if FALSE then worst-case
+
+
+# Select number of samples in trial
+out <- out[out$n1==n1,]
+
+if (best_case) {
+  out <- out[(out$delta == 0) & (out$modelspec == 1),]
+  label_figures <- paste('best_case-n1_',n1, sep='')
+} else {
+  out <- out[(out$delta == 0.5) & (out$modelspec == 0), ]
+  label_figures <- paste('worst_case-n1_',n1, sep='')
+}
+
+
+
+
+# Remove any NaNs
+print(paste('Number of rows before removal',nrow(out)))
+out <- na.omit(out)
+print(paste('Number of rows after removal',nrow(out)))
+
+out
+```
+
+```{r, echo=FALSE}
+##### Computing summary statistics
+
+columns <- c(
+  'delta',
+  'n0',
+  'estimator',
+  'absolute_bias',
+  'var',
+  'mad',
+  'cov',
+  'sample_size',
+  'avg_se',
+  'sd_se',
+  'avg_ci.ll',
+  'avg_ci.ul',
+  'rel_var',
+  'rel_mad',
+  'rel_avg_se'
+)
+
+res_df  <- data.frame(matrix(ncol = length(columns), nrow = 0))
+colnames(res_df) <- columns
+
+for (delta in unique(out$delta)) {
+  for (n0 in unique(out$n0)) {
+    for (estimator in unique(out$estimator)) {
+      tmp_indices <- (out$estimator == estimator) &
+        (out$n0 == n0) & (out$delta == delta)
+      bias <-
+        abs(mean(out$estimate[tmp_indices]) - 5)
+      var  <-
+        var(out$estimate[tmp_indices])
+      mad <- mad(out$estimate[tmp_indices])
+      cov <- mean(out$coverage[tmp_indices])
+      avg_se <- mean(out$se[tmp_indices])
+      sd_se <- sd(out$se[tmp_indices])
+      avg_ci.ll <- mean(out$ci_ll[tmp_indices])
+      avg_ci.ul <- mean(out$ci_ul[tmp_indices])
+      res_df[nrow(res_df) + 1,] <-
+        c(delta, n0, estimator, bias, var, mad, cov, sum(tmp_indices), avg_se, sd_se, avg_ci.ll, avg_ci.ul, NaN, NaN, NaN)
+    }
+  }
+}
+
+for (delta in unique(res_df$delta)) {
+  for (n0 in unique(res_df$n0)) {
+    trial_df <- res_df[(res_df$estimator == 'AIPW') & (res_df$n0 == n0) & (res_df$delta == delta), ]
+    for (estimator in unique(res_df$estimator)) {
+      est_df <- res_df[(res_df$estimator == estimator) & (res_df$n0 == n0) & (res_df$delta == delta), ]
+      rel_var  <- as.numeric(est_df$var) / as.numeric(trial_df$var)
+      rel_mad  <- as.numeric(est_df$mad) / as.numeric(trial_df$mad)
+      rel_avg_se  <- as.numeric(est_df$avg_se) / as.numeric(trial_df$avg_se)
+      res_df[(res_df$estimator == estimator) &
+               (res_df$n0 == n0), ]$rel_var <- rel_var
+      res_df[(res_df$estimator == estimator) &
+               (res_df$n0 == n0), ]$rel_mad <- rel_mad
+      res_df[(res_df$estimator == estimator) &
+               (res_df$n0 == n0), ]$rel_avg_se <- rel_avg_se
+    }
+  }
+}
+res_df$delta <- as.numeric(res_df$delta)
+res_df$n0 <- as.numeric(res_df$n0)
+res_df$absolute_bias <- as.numeric(res_df$absolute_bias)
+res_df$var <- as.numeric(res_df$var)
+res_df$mad <- as.numeric(res_df$mad)
+res_df$cov <- as.numeric(res_df$cov)
+res_df$sample_size <- as.numeric(res_df$sample_size)
+res_df$rel_var <- as.numeric(res_df$rel_var)
+res_df$rel_mad <- as.numeric(res_df$rel_mad)
+res_df$rel_avg_se <- as.numeric(res_df$rel_avg_se)
+res_df$avg_se <- as.numeric(res_df$avg_se)
+res_df$sd_se <- as.numeric(res_df$sd_se)
+res_df$avg_ci.ll <- as.numeric(res_df$avg_ci.ll)
+res_df$avg_ci.ul <- as.numeric(res_df$avg_ci.ul)
+
+res_df$estimator <- factor(res_df$estimator, levels = c('Optimized randomization-aware', 'Combined', 'Unadjusted trial-only', 'AIPW', 'Naive pooling', 'Test-then-Pool', 'Dynamic Borrowing', 'Selective Borrowing'))
+res_df
+
+```
+
+
+```{r}
+
+
+
+
+
+plot_df <- res_df
+
+q1 <-
+  ggplot(
+    plot_df,
+    aes(
+      x = n0,
+      y = absolute_bias,
+      ymin = absolute_bias - sqrt(var / sample_size),
+      ymax = absolute_bias + sqrt(var / sample_size),
+      group = estimator,
+      colour = estimator,
+      shape = estimator
+    )
+  ) + 
+  geom_line(linewidth = 1.1) + 
+  geom_point() +
+  scale_color_brewer(palette = 'Dark2') + 
+  xlab(TeX("Number of external controls $\\n_0$"))  +
+  ylim(0.0, 0.4) +
+  ylab('Absolute bias') +
+  geom_errorbar(position = position_dodge(.9)) +
+  scale_shape_manual(values=good.shapes[1:9])
+
+
+q2 <-
+  ggplot(
+    plot_df,
+    aes(
+      x = n0,
+      y = cov,
+      ymin = cov,
+      ymax = cov,
+      group = estimator,
+      colour = estimator,
+      shape = estimator
+    )
+  ) +
+  geom_line(linewidth = 1.1) + 
+  geom_point() +
+  scale_color_brewer(palette = 'Dark2') + 
+  xlab(TeX("Number of external controls $\\n_0$"))  +
+  ylim(0.8, 1.0) +
+  ylab('Coverage') +
+  geom_errorbar(width = 0) +
+  scale_shape_manual(values=good.shapes[1:9])
+
+q3 <-
+  ggplot(
+    plot_df,
+    aes(
+      x = n0,
+      y = rel_var,
+      ymin = rel_var,
+      ymax = rel_var,
+      group = estimator,
+      colour = estimator,
+      shape = estimator
+    )
+  ) +
+  geom_line(linewidth = 1.1) + 
+  geom_point() +
+  scale_color_brewer(palette = 'Dark2') + 
+  xlab(TeX("Number of external controls $\\n_0$"))  +
+  ylab('Relative variance') +
+  geom_errorbar(width = 0) + 
+  #scale_y_continuous(trans = 'log2', breaks = pretty_breaks(n = 6)) +
+  scale_shape_manual(values=good.shapes[1:9])
+
+
+paper_plot <-
+  q1 + q2 + q3  &
+  theme(legend.position = "bottom", text = element_text(family = "serif"))
+paper_plot <-
+  paper_plot + plot_layout(guides = "collect") + scale_color_brewer(palette = 'Dark2')
+paper_plot
+
+
+```
+
+```{r}
+ggsave(paste('../figures/',label_figures,'_paper.pdf',sep=''), paper_plot, width=20, height=10, units='cm')
+```
+

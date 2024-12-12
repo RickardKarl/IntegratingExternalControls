@@ -13,7 +13,7 @@ All experiments were run using R.
 - To see code used for the simulation study, see experiments/run_simulation_study.R. 
 - Folders:
   - m_estimation: contains all estimators implemented using M-estimation, including our proposed randomization-aware and combined estimators.
-  - dynamic_borrowing: contains alternative estimators based on a "dynamic borrowing" approach 
+  - other_estimators: contains alternative estimators
   - data: contains file used to generate data
   - experiments: contains files used to run simulations and generate plots.
   - output_folder: empty folder where results are saved after running experiment.

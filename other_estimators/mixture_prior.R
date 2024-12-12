@@ -75,15 +75,23 @@ mixture_prior.ate <- function(data,
     patient = 'id',
     covariates = covariates,
   )
-  
   #### Get summary statistics
   return(
     data.frame(
       est = summary_mixture$diff_mean[2],
-      se = 0,
-      # NOT USED
+      se = NaN,
       ci.ll = summary_mixture$diff_lower[2],
-      ci.ul = summary_mixture$diff_upper[2]
+      ci.ul = summary_mixture$diff_upper[2],
+      corr_se = NaN,
+      corr_ci.ll = NaN,
+      corr_ci.ul = NaN,
+      est.A0 = NaN,
+      se.A0 = NaN,
+      ci.ll.A0 = NaN,
+      ci.ul.A0 = NaN,
+      corr_se.A0 = NaN,
+      corr_ci.ll.A0 = NaN,
+      corr_ci.ul.A0 = NaN
     )
   )
 }

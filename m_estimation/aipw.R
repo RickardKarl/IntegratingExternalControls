@@ -1,7 +1,4 @@
-#source('m_estimation/bias_correction.R')
-
-
-ee.trial <- function(data, models) {
+ee.trial <- function(data, models, propensity_score = NULL) {
   # Get design matrix
   Xe  <-
     grab_design_matrix(data, rhs_formula = grab_fixed_formula(models$e))
@@ -26,6 +23,9 @@ ee.trial <- function(data, models) {
   
   function(theta) {
     e  <- plogis(Xe %*% theta[e_pos])[, 1]
+    if (!is.null(propensity_score)) {
+      e[] <- propensity_score
+    }
     g0 <- Xg0 %*% theta[g0_pos]
     g1 <- Xg1 %*% theta[g1_pos]
     q  <- theta[length(theta) - 3]
@@ -43,8 +43,16 @@ ee.trial <- function(data, models) {
   }
 }
 
-estimate_no_pooling <-
-  function(data, outcome_formul, treatment_formula) {
+estimate_aipw <-
+  function(data,
+           outcome_formul,
+           treatment_formula,
+           propensity_score) {
+    
+    ############################################################################
+    # Do m-estimation 
+    ############################################################################
+    
     require(geex)
     e_model  <-
       glm(
@@ -88,19 +96,38 @@ estimate_no_pooling <-
       estFUN = ee.trial,
       data = data,
       root_control = setup_root_control(start = start_val),
-      outer_args = list(models = models),
+      outer_args = list(models = models, propensity_score = propensity_score),
       corrections = list(bias_correction_.fay = correction(fay_bias_correction))
     )
     
+    ############################################################################
+  
+    # get estimates of ATE
     estimate = roots(out)[nparms]
-    corrected_se = sqrt(get_corrections(out)$bias_correction_.fay[nparms, nparms])
+    se = sqrt(vcov(out)[nparms, nparms])
+    corr_se = sqrt(get_corrections(out)$bias_correction_.fay[nparms, nparms])
+    
+    # get estimates of control mean outcome
+    estimate.A0 = roots(out)[nparms - 1]
+    se.A0 = sqrt(vcov(out)[nparms - 1, nparms - 1])
+    corr_se.A0 =  sqrt(get_corrections(out)$bias_correction_.fay[nparms - 1, nparms - 1])
     
     return(
       list(
         est =  estimate,
-        se = corrected_se,
-        ci.ll = estimate - 1.96 * corrected_se,
-        ci.ul = estimate + 1.96 * corrected_se
+        se = se,
+        ci.ll = estimate - 1.96 * se,
+        ci.ul = estimate + 1.96 * se,
+        corr_se = corr_se,
+        corr_ci.ll = estimate - 1.96 * corr_se,
+        corr_ci.ul = estimate + 1.96 * corr_se,
+        est.A0 = estimate.A0,
+        se.A0 = se.A0,
+        ci.ll.A0 = estimate.A0 - 1.96 * se.A0,
+        ci.ul.A0 = estimate.A0 + 1.96 * se.A0,
+        corr_se.A0 = corr_se.A0,
+        corr_ci.ll.A0 = estimate.A0 - 1.96 * corr_se.A0,
+        corr_ci.ul.A0 = estimate.A0 + 1.96 * corr_se.A0
       )
     )
     

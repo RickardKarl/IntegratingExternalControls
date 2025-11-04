@@ -1,0 +1,299 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(latex2exp)
+library(patchwork)
+library(stringr)
+library(scales)
+library(knitr)
+library(kableExtra)
+library(tidyr)
+library(gt)
+
+good.shapes = c(1:25,33:127)
+```
+
+
+```{r include=FALSE, results='hide'}
+
+library(extrafont)
+```
+
+
+```{r}
+
+# Set the path to your directory
+directory <- "../output_folder/"
+
+file_list = c('0411_084948-50.csv', '0411_090955-50.csv', '0411_092916-50.csv', '0411_093215-50.csv')
+
+
+data_out <- data.frame()
+for (id in file_list) {
+  tmp <-
+    read.csv(paste(directory,
+                   id,
+                   sep = ''))
+  data_out <- rbind(data_out, tmp)
+  
+}
+
+# Define readable estimator names
+estimator_labels <- c(
+  ipw                              = "Unadjusted trial-only",
+  trial.standard                   = "AIPW",
+  trial.unweighted                 = "AIPW (unweighted)",
+  trial.estimated_propensity       = "AIPW (est. prop.)",
+  r_aware.standard                 = "Optimized randomization-aware",
+  r_aware.unweighted               = "Optimized randomization-aware (unweighted)",
+  r_aware.estimated_propensity     = "Optimized randomization-aware (est. prop.)",
+  pooling                          = "Pooling",
+  combined.standard                = "Combined",
+  combined.unweighted              = "Combined (unweighted)",
+  combined.estimated_propensity    = "Combined (est. prop.)",
+  `test-then-pool`                 = "Test-then-Pool",
+  dynamic_borrowing                = "Dynamic Borrowing",
+  selective_borrowing_known_propensity = "Selective Borrowing (known propensity)",
+  selective_borrowing              = "Selective Borrowing"
+)
+
+# Replace estimator names using mapping
+data_out$estimator <- dplyr::recode(data_out$estimator, !!!estimator_labels, .default = data_out$estimator)
+
+# Set plotting order (only for the ones that actually appear)
+estimator_order <- c(
+  "Optimized randomization-aware",
+  "Optimized randomization-aware (unweighted)",
+  "Optimized randomization-aware (est. prop.)",
+  "Combined",
+  "Combined (unweighted)",
+  "Combined (est. prop.)",
+  "Unadjusted trial-only",
+  "AIPW",
+  "AIPW (unweighted)",
+  "AIPW (est. prop.)",
+  "Pooling",
+  "Test-then-Pool",
+  "Dynamic Borrowing",
+  "Selective Borrowing",
+  "Selective Borrowing (known propensity)"
+)
+
+# Apply factor order, keeping only levels that exist
+data_out$estimator <- factor(data_out$estimator, 
+                             levels = estimator_order[estimator_order %in% unique(data_out$estimator)])
+
+# Convert all numeric columns (except categorical ones)
+data_out <- data_out %>%
+  mutate(across(!c(estimator, dataset), as.numeric))
+
+# Add scenario label
+data_out <- data_out %>%
+  mutate(scenario = case_when(
+    delta == 0 & modelspec == 1 ~ "best",
+    delta == 0.5 & modelspec == 0 ~ "adversarial",
+    TRUE ~ "other"
+  ))
+
+# Final dataset
+out <- data_out
+```
+
+```{r}
+unique(out$scenario)
+print(colnames(out))
+
+out
+```
+
+
+```{r, echo=FALSE}
+##### Computing summary statistics
+
+# ---- Ensure expected columns exist ----
+expected_cols <- c(
+  "estimate", "se", "coverage", "corr_coverage", "corr_se",
+  "estimate.A0", "coverage.A0", "corr_coverage.A0"
+)
+
+for (col in expected_cols) {
+  if (!col %in% names(out)) out[[col]] <- NA_real_
+}
+
+# ---- Compute summaries ----
+res_df <- out %>%
+  group_by(n0, n1, scenario, estimator) %>%
+  summarise(
+    sample_size   = sum(!is.na(estimate)),
+    absolute_bias = abs(mean(estimate, na.rm = TRUE) - 5),
+    var           = var(estimate, na.rm = TRUE),
+    cov           = mean(coverage, na.rm = TRUE),
+    corr_cov      = mean(corr_coverage, na.rm = TRUE),
+    avg_se        = mean(se, na.rm = TRUE),
+    avg_corr_se   = mean(corr_se, na.rm = TRUE),
+    absolute_bias.A0 = abs(mean(estimate.A0, na.rm = TRUE) - (-0.75)),
+    var.A0        = var(estimate.A0, na.rm = TRUE),
+    cov.A0        = mean(coverage.A0, na.rm = TRUE),
+    avg_se.A0     = mean(corr_coverage.A0, na.rm = TRUE),  # or corr_se.A0 if exists
+    .groups = "drop"
+  ) %>%
+  mutate(
+    # fallback if corr_cov missing
+    corr_cov = if_else(is.na(corr_cov), cov, corr_cov)
+  )
+
+# ---- Compute relative variance vs AIPW (if available) ----
+if ("AIPW" %in% res_df$estimator) {
+  aipw_var <- res_df %>%
+    filter(estimator == "AIPW") %>%
+    select(n0, n1, scenario, var) %>%
+    rename(aipw_var = var)
+
+  res_df <- res_df %>%
+    left_join(aipw_var, by = c("n0", "n1", "scenario")) %>%
+    mutate(
+      rel_var = if_else(!is.na(aipw_var) & !is.na(var), var / aipw_var, NA_real_)
+    ) %>%
+    select(-aipw_var)
+} else {
+  res_df <- res_df %>% mutate(rel_var = NA_real_)
+}
+
+# ---- Coerce numeric columns ----
+numeric_cols <- c(
+  "n0", "n1", "sample_size", "absolute_bias", "var", "cov", "corr_cov",
+  "avg_se", "avg_corr_se", "rel_var", "absolute_bias.A0",
+  "var.A0", "cov.A0", "avg_se.A0"
+)
+
+res_df <- res_df %>%
+  mutate(across(all_of(numeric_cols), as.numeric))
+
+# ---- Factor levels for estimators ----
+estimator_levels <- c(
+  "Optimized randomization-aware",
+  "Optimized randomization-aware (unweighted)",
+  "Optimized randomization-aware (est. prop.)",
+  "Combined",
+  "Combined (unweighted)",
+  "Combined (est. prop.)",
+  "Unadjusted trial-only",
+  "AIPW",
+  "AIPW (unweighted)",
+  "AIPW (est. prop.)",
+  "Pooling",
+  "Test-then-Pool",
+  "Dynamic Borrowing",
+  "Selective Borrowing",
+  "Selective Borrowing (known propensity)"
+)
+
+res_df <- res_df %>%
+  mutate(
+    estimator = factor(estimator,
+                       levels = estimator_levels[estimator_levels %in% unique(estimator)])
+  )
+
+```
+
+
+
+ 
+```{r}
+table_df <- res_df[(res_df$n0 == 200), ] %>%
+  mutate(trial_type = case_when(
+    n1 == 50 ~ "small",
+    n1 == 200 ~ "large",
+    TRUE ~ as.character(n1)
+  ))
+
+table_df <- table_df[table_df$trial_type %in% c('small', 'large'), ]
+
+reshaped_bias <- table_df %>%
+  select(trial_type, scenario, estimator, absolute_bias) %>%
+  mutate(trial_type = as.character(trial_type), scenario = as.character(scenario)) %>%
+  pivot_wider(names_from = c(trial_type, scenario), values_from = absolute_bias, names_sep = "_", names_prefix = "Bias_")
+
+reshaped_variance <- table_df %>%
+  select(trial_type, scenario, estimator, var) %>%
+  mutate(trial_type = as.character(trial_type), scenario = as.character(scenario)) %>%
+  pivot_wider(names_from = c(trial_type, scenario), values_from = var, names_sep = "_", names_prefix = "Variance_")
+
+reshaped_coverage <- table_df %>%
+  select(trial_type, scenario, estimator, corr_cov) %>%
+  mutate(trial_type = as.character(trial_type), scenario = as.character(scenario)) %>%
+  pivot_wider(names_from = c(trial_type, scenario), values_from = corr_cov, names_sep = "_", names_prefix = "Coverage_")
+
+# Join all reshaped data into one final table
+final_table <- reshaped_bias %>%
+  left_join(reshaped_variance, by = "estimator") %>%
+  left_join(reshaped_coverage, by = "estimator")
+
+final_table
+# Create the gt table with multi-level headers for trial_type and scenario
+table_with_headers <- final_table %>%
+  gt() %>%
+  tab_spanner(
+    label = "Best-case scenario", 
+    columns = c("Bias_small_best", "Variance_small_best", "Coverage_small_best", 
+                "Bias_large_best", "Variance_large_best", "Coverage_large_best"),
+    id='best'
+  ) %>%
+  tab_spanner(
+    label = "Adversarial scenario", 
+    columns = c("Bias_small_adversarial", "Variance_small_adversarial", "Coverage_small_adversarial", 
+                "Bias_large_adversarial", "Variance_large_adversarial", "Coverage_large_adversarial"),
+    id='worst'
+  ) %>%
+  tab_spanner(
+    label = "Small trial", 
+    columns = c("Bias_small_best", "Variance_small_best", "Coverage_small_best", 
+                "Bias_small_adversarial", "Variance_small_adversarial", "Coverage_small_adversarial"),
+    id="small_trial"
+  ) %>%
+  tab_spanner(
+    label = "Large trial", 
+    columns = c("Bias_large_best", "Variance_large_best", "Coverage_large_best", 
+                "Bias_large_adversarial", "Variance_large_adversarial", "Coverage_large_adversarial"),
+    id="large_trial"
+  ) %>%
+  cols_label(
+    Bias_small_best = "Bias",
+    Bias_large_best = "Bias",
+    Bias_small_adversarial = "Bias",
+    Bias_large_adversarial = "Bias",
+    Variance_small_best = "Var",
+    Variance_large_best = "Var",
+    Variance_small_adversarial = "Var",
+    Variance_large_adversarial = "Var",
+    Coverage_small_best = "Cov",
+    Coverage_large_best = "Cov",
+    Coverage_small_adversarial = "Cov",
+    Coverage_large_adversarial = "Cov"
+  ) %>%
+  fmt_number(
+    columns = c("Bias_small_best", "Bias_small_adversarial", "Bias_large_best", 
+                "Bias_large_adversarial", "Variance_small_best", "Variance_small_adversarial",
+                "Variance_large_best", "Variance_large_adversarial", 
+                "Coverage_small_best", "Coverage_small_adversarial", 
+                "Coverage_large_best", "Coverage_large_adversarial"),
+    decimals = 2
+  )
+
+# View the final table with multi-level headers
+table_with_headers
+
+latex_table <- table_with_headers %>% as_latex()
+
+cat(latex_table)
+
+# Save the LaTeX table to a .tex file
+writeLines(latex_table, "table_output.tex")
+
+```

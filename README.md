@@ -30,3 +30,31 @@ R 4.3.1 was used; below we list the necessary dependencies to run the code:
 - historicalborrow_1.0.4
 - caret_6.0-94
 - SelectiveIntegrative_1.0 (installed using devtools from Github repository: Gaochenyin/SelectiveIntegrative)
+
+
+
+### Instructions for reproducing Table 1
+
+From the project root directory, we execute the following command:
+
+```bash
+Rscript experiments/run_simulation_study.R <trial_size> <external_size> <population_shift> <correct_model_specification> <seed>
+```
+
+#### Run the different code
+
+Each scenario corresponds to a combination of trial size, external sample size, population shift, and model specification.
+
+| **Scenario** | **Description**                                    | **Command**                                                   |
+| ------------ | -------------------------------------------------- | ------------------------------------------------------------- |
+| **A1**       | Small trial, correct assumptions (Scenario A)      | `Rscript experiments/run_simulation_study.R 50 200 0 1 50`    |
+| **A2**       | Large trial, correct assumptions (Scenario A)      | `Rscript experiments/run_simulation_study.R 200 200 0 1 50`   |
+| **B1**       | Small trial, misspecified assumptions (Scenario B) | `Rscript experiments/run_simulation_study.R 50 200 0.5 0 50`  |
+| **B2**       | Large trial, misspecified assumptions (Scenario B) | `Rscript experiments/run_simulation_study.R 200 200 0.5 0 50` |
+
+**Note:** Each command simulates 250 repetitions of that configuration. In the paper, results are based on 5000 repetitions. To reproduce the paper's results, rerun the above commands multiple times using **different random seeds**.
+
+#### Plotting Table 1
+After the simulations complete, run the notebook `experiments/plot_table_1.Rmd`.
+
+Inside the notebook, you **must** specify the list of simulation output files located in the `output_folder/` directory.

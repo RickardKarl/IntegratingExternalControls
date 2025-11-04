@@ -52,9 +52,9 @@ Each scenario corresponds to a combination of trial size, external sample size, 
 | **B1**       | Small trial, misspecified assumptions (Scenario B) | `Rscript experiments/run_simulation_study.R 50 200 0.5 0 50`  |
 | **B2**       | Large trial, misspecified assumptions (Scenario B) | `Rscript experiments/run_simulation_study.R 200 200 0.5 0 50` |
 
-**Note:** Each command simulates 250 repetitions of that configuration. In the paper, results are based on 5000 repetitions. To reproduce the paper's results, rerun the above commands multiple times using **different random seeds**.
+**Note:** Each command simulates 250 repetitions of that configuration. In the paper, results are based on 5000 repetitions. To reproduce the paper's results, rerun the above commands multiple times using different random seeds.
 
 #### Plotting Table 1
-After the simulations complete, run the notebook `experiments/plot_table_1.Rmd`.
+After the simulations complete, run the notebook `experiments/plot_table_1.Rmd`.
 
-Inside the notebook, you **must** specify the list of simulation output files located in the `output_folder/` directory.
+Inside the notebook, you **must** specify the list of simulation output files located in the `output_folder/` directory.

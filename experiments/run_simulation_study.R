@@ -27,11 +27,6 @@ if (length(args) >= 5) {
   in_corr_spec <- as.integer(args[4])
   seed <- as.integer(args[5])
   
-  cat('n1', in_n1, '\n')
-  cat('n0', in_n0, '\n')
-  cat('delta', in_delta, '\n')
-  cat('correct model spec.', in_corr_spec, '\n')
-  cat('seed', seed, '\n')
 } else {
   in_n1 <- 50
   in_n0 <- 200
@@ -40,9 +35,18 @@ if (length(args) >= 5) {
   seed = 50
 }
 
+cat('Setting parameters:')
+cat('n1', in_n1, '\n')
+cat('n0', in_n0, '\n')
+cat('delta', in_delta, '\n')
+cat('correct model spec.', in_corr_spec, '\n')
+cat('seed', seed, '\n')
+cat('\n')
+
 set.seed(seed)
 iterations <- 250
 
+cat('Loading dataset\n')
 dataset = 'data/polynomial_dgp.R'
 source(dataset)
 tparam <- true_ate() # true ATE
@@ -53,8 +57,7 @@ propensity_score = 1 / 2
 # SETUP METHODS
 ##################
 
-
-
+cat('Loading methods\n')
 if (in_corr_spec == 1) {
   outcome_formula <- formula(
     Y ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10 + I(X1 ^ 2) + I(X2 ^ 2) + I(X3 ^ 2) + I(X4 ^ 2) + I(X5 ^ 2) + I(X6 ^ 2) + I(X7 ^ 2) + I(X8 ^ 2) + I(X9 ^ 2) + I(X10 ^ 2)
@@ -131,8 +134,6 @@ method_list <-
   available_estimators[c(
     'ipw',
     'standard',
-    'unweighted',
-    'estimated_propensity',
     'pooling',
     'test-then-pool',
     'selective_borrowing',
@@ -142,6 +143,7 @@ method_list <-
 ##################
 # START EXPERIMENT
 ##################
+cat('Starting experiment\n')
 
 columns <-
   c(

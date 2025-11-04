@@ -31,6 +31,7 @@ library(extrafont)
 # Set the path to your directory
 directory <- "../output_folder/"
 
+# Example files below
 file_list = c('0411_084948-50.csv', '0411_090955-50.csv', '0411_092916-50.csv', '0411_093215-50.csv')
 
 

@@ -35,15 +35,15 @@ R 4.3.1 was used; below we list the necessary dependencies to run the code:
 
 ### Instructions for reproducing Table 1
 
-From the project root directory, we execute the following command:
+From the project root directory, we will execute the following command which has some input arguments:
 
 ```bash
 Rscript experiments/run_simulation_study.R <trial_size> <external_size> <population_shift> <correct_model_specification> <seed>
 ```
 
-#### Run the different code
+#### Run the different scnenarios
 
-Each scenario corresponds to a combination of trial size, external sample size, population shift, and model specification.
+Each scenario corresponds to different inputs arguments.
 
 | **Scenario** | **Description**                                    | **Command**                                                   |
 | ------------ | -------------------------------------------------- | ------------------------------------------------------------- |

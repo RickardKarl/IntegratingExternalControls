@@ -55,6 +55,6 @@ Each scenario corresponds to a combination of trial size, external sample size, 
 **Note:** Each command simulates 250 repetitions of that configuration. In the paper, results are based on 5000 repetitions. To reproduce the paper's results, rerun the above commands multiple times using different random seeds.
 
 #### Plotting Table 1
-After the simulations complete, run the notebook `experiments/plot_table_1.Rmd`.
+After the simulations have run, we can execute the code from the notebook `experiments/plot_table_1.Rmd`.
 
-Inside the notebook, you **must** specify the list of simulation output files located in the `output_folder/` directory.
+Inside the notebook, you must specify the list of simulation output files located in the `output_folder/` directory.
